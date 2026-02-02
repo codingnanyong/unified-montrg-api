@@ -42,11 +42,12 @@ poetry run pytest
 Oracle 데이터베이스(CMMS)에 연결하려면 Oracle Instant Client가 필요합니다.
 
 1. **Oracle Instant Client 다운로드**
-   - Oracle 공식 사이트: https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html
+   - Oracle 공식 사이트: [https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html]
    - **Instant Client Basic** 패키지 다운로드 (예: `instantclient-basic-linux.x64-23.7.0.25.01.zip`)
    - Oracle 계정이 필요할 수 있습니다 (무료 등록 가능)
 
 2. **Docker 이미지 빌드**
+
    ```bash
    # Oracle Instant Client ZIP 파일을 docker/ 디렉토리에 복사
    cp instantclient-basic-linux.x64-23.7.0.25.01.zip docker/instantclient-basic.zip
@@ -61,6 +62,7 @@ Oracle 데이터베이스(CMMS)에 연결하려면 Oracle Instant Client가 필�
    ```
 
 3. **빌드 확인**
+
    ```bash
    # (kubeadm 환경) containerd에 이미지 적재
    docker save csg/unified-montrg-api:latest -o unified-montrg-api.tar
@@ -71,6 +73,7 @@ Oracle 데이터베이스(CMMS)에 연결하려면 Oracle Instant Client가 필�
    ```
 
 **참고:**
+
 - Oracle Instant Client ZIP 파일이 없으면 빌드는 성공하지만 경고가 표시됩니다
 - 이 경우 thin mode를 사용하려고 시도하지만, 일부 Oracle 서버 버전은 thin mode를 지원하지 않을 수 있습니다
 - CMMS 데이터베이스 연결이 필요한 경우 반드시 Oracle Instant Client를 포함하여 빌드해야 합니다
@@ -90,6 +93,7 @@ kubectl apply -f k8s/secret.yaml
 ```
 
 `k8s/secret.yaml`에는 다음 환경 변수를 Base64 인코딩하여 설정합니다:
+
 - `IP04_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
 - `IP12_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
 - `IP20_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
@@ -98,6 +102,7 @@ kubectl apply -f k8s/secret.yaml
 - `MONTRG_DATABASE_URL`: `postgresql+asyncpg://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
 
 **동적 데이터베이스 지원:**
+
 - `IP*_DATABASE_URL` 패턴의 환경 변수를 자동으로 인식합니다
 - 예: `IP04_DATABASE_URL` → `ip04`, `IP12_DATABASE_URL` → `ip12` 등
 - 새로운 IP 번호를 추가하려면 Secret에 `IP**_DATABASE_URL`만 추가하면 됩니다
@@ -112,6 +117,7 @@ cd ~/apps/unified_montrg
 ```
 
 이 스크립트는 다음 작업을 수행합니다:
+
 1. Docker 이미지 빌드
 2. 모든 노드에 이미지 배포 (containerd 환경, 고가용성을 위한 자동 배포)
 3. Kubernetes 리소스 적용 (Namespace → Secret → ConfigMap → Service → Deployment → Ingress Controller → Ingress)
@@ -119,12 +125,14 @@ cd ~/apps/unified_montrg
 5. Pod 상태 확인
 
 **고가용성 특징:**
+
 - 애플리케이션 Pod는 **5개의 Replica**로 실행 (기본 설정)
 - Ingress Controller는 **DaemonSet**으로 모든 노드에 배포
 - 어떤 노드 IP로 접근해도 동일하게 작동하며 **자동 로드밸런싱**
 - 노드 또는 Pod 장애 시에도 서비스 계속 제공
 
 **환경 변수 커스터마이징:**
+
 ```bash
 IMAGE_NAME=my-registry/unified-montrg:1.0.0 \
 NAMESPACE=my-namespace \
@@ -166,16 +174,19 @@ kubectl apply -f $kf/ingress.yaml
 애플리케이션은 **Ingress Controller (DaemonSet)**를 통해 접근할 수 있습니다. Ingress Controller는 모든 노드에 배포되어 있으며, **어떤 노드 IP로 접근해도 자동으로 로드밸런싱**됩니다.
 
 **고가용성 구조:**
+
 - Ingress Controller가 DaemonSet으로 배포되어 **모든 노드**에 실행
 - NodePort 30081로 모든 노드에 동일 포트로 접근 가능
 - 트래픽이 자동으로 여러 Pod에 분산 처리
 
 **접근 URL 예시:**
+
 - **HTTP**: `http://<노드1 IP>:30081/api` 또는 `http://<노드2 IP>:30081/api` (어느 노드든 접근 가능)
 - **API 문서**: `http://<노드 IP>:30081/api/docs`
 - **ReDoc**: `http://<노드 IP>:30081/api/redoc`
 
 **예시:**
+
 ```bash
 # 클러스터의 어떤 노드 IP든 사용 가능
 http://10.10.100.80:30081/api     # control-plane 노드
@@ -213,5 +224,3 @@ kubectl logs -f deployment/unified-montrg -n unified-montrg
 # Deployment 재시작 (코드 변경 후)
 kubectl rollout restart deployment/unified-montrg -n unified-montrg
 ```
-
-
