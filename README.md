@@ -8,130 +8,126 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supported-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![MySQL](https://img.shields.io/badge/MySQL-Supported-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 
-FastAPI 기반의 Kubernetes 클러스터용 모니터링 API 골격입니다.
+A FastAPI-based monitoring API skeleton for Kubernetes clusters.
 
-## 빠른 시작
+## Quick Start
 
 ```bash
-# 의존성 설치 (Poetry 사용)
+# Install dependencies (using Poetry)
 poetry install
 
-# 애플리케이션 실행
+# Run the application
 poetry run uvicorn app.main:app --reload
 
-# 또는 requirements.txt 기반 가상환경 구성
+# Or with requirements.txt and virtualenv
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-**로컬 개발용:** `.env` 파일을 루트에 생성하여 로컬에서 실행 시 설정을 재정의할 수 있습니다.  
-**Kubernetes 배포:** 데이터베이스 연결 정보는 Secret으로 관리되며, `k8s/secret.yaml` 파일에서 설정합니다. 민감한 정보이므로 Git에 커밋하지 마세요.
+**Local development:** Create a `.env` file in the project root to override settings when running locally.  
+**Kubernetes deployment:** Database connection details are managed via Secrets. Configure them in `k8s/secret.yaml`. Do not commit this file to Git.
 
-## 테스트
+## Tests
 
 ```bash
 poetry run pytest
 ```
 
-## Docker 이미지 빌드
+## Docker Image Build
 
-### Oracle Instant Client 설치 (CMMS 데이터베이스 연결용)
+### Install Oracle Instant Client (for Oracle Database Connection)
 
-Oracle 데이터베이스(CMMS)에 연결하려면 Oracle Instant Client가 필요합니다.
+Oracle Instant Client is required to connect to the Oracle database.
 
-1. **Oracle Instant Client 다운로드**
-   - Oracle 공식 사이트: [https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html]
-   - **Instant Client Basic** 패키지 다운로드 (예: `instantclient-basic-linux.x64-23.7.0.25.01.zip`)
-   - Oracle 계정이 필요할 수 있습니다 (무료 등록 가능)
+1. **Download Oracle Instant Client**
+   - Oracle downloads: [https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html]
+   - Download the **Instant Client Basic** package (e.g. `instantclient-basic-linux.x64-23.7.0.25.01.zip`)
+   - An Oracle account may be required (free registration available)
 
-2. **Docker 이미지 빌드**
+2. **Build the Docker image**
 
    ```bash
-   # Oracle Instant Client ZIP 파일을 docker/ 디렉토리에 복사
+   # Copy the Oracle Instant Client ZIP into the docker/ directory
    cp instantclient-basic-linux.x64-23.7.0.25.01.zip docker/instantclient-basic.zip
    
-   # 이미지 빌드 (로컬 태그: csg/unified-montrg-api:latest)
+   # Build image (local tag: csg/unified-montrg-api:latest)
    docker build -f docker/Dockerfile -t csg/unified-montrg-api:latest .
    
-   # 또는 빌드 인자로 ZIP 파일명 지정
+   # Or specify the ZIP filename via build arg
    docker build -f docker/Dockerfile \
      --build-arg INSTANTCLIENT_ZIP=instantclient-basic-linux.x64-23.7.0.25.01.zip \
      -t csg/unified-montrg-api:latest .
    ```
 
-3. **빌드 확인**
+3. **Verify the build**
 
    ```bash
-   # (kubeadm 환경) containerd에 이미지 적재
+   # (kubeadm) Load image into containerd
    docker save csg/unified-montrg-api:latest -o unified-montrg-api.tar
    sudo ctr -n k8s.io images import unified-montrg-api.tar
    
-   # 로컬 실행 예시
+   # Run locally
    docker run --rm -p 8000:8000 --env-file .env csg/unified-montrg-api:latest
    ```
 
-**참고:**
+**Notes:**
 
-- Oracle Instant Client ZIP 파일이 없으면 빌드는 성공하지만 경고가 표시됩니다
-- 이 경우 thin mode를 사용하려고 시도하지만, 일부 Oracle 서버 버전은 thin mode를 지원하지 않을 수 있습니다
-- CMMS 데이터베이스 연결이 필요한 경우 반드시 Oracle Instant Client를 포함하여 빌드해야 합니다
+- If the Oracle Instant Client ZIP is missing, the build will succeed but may show warnings
+- The image may fall back to thin mode; some Oracle server versions do not support thin mode
+- For CMMS database connectivity, include Oracle Instant Client in the build
 
-`docker/.dockerignore`에 정의된 패턴은 루트 `.dockerignore` 심볼릭 링크를 통해 빌드 컨텍스트에 적용됩니다.
+Patterns defined in `docker/.dockerignore` are applied to the build context via the root `.dockerignore` symlink.
 
-## Kubernetes 배포
+## Kubernetes Deployment
 
-### 사전 준비
+### Prerequisites
 
-1. **Secret 설정**: 데이터베이스 연결 정보를 Secret으로 관리합니다.
+1. **Secrets:** Store database connection strings in Kubernetes Secrets.
 
 ```bash
-# secret.yaml 파일 생성 (예시는 secret.example.yaml 참고)
-# Base64로 인코딩된 데이터베이스 URL을 설정
+# Create secret.yaml (see secret.example.yaml for reference)
+# Set Base64-encoded database URLs
 kubectl apply -f k8s/secret.yaml
 ```
 
-`k8s/secret.yaml`에는 다음 환경 변수를 Base64 인코딩하여 설정합니다:
+Set the following in `k8s/secret.yaml` (Base64-encoded):
 
-- `IP04_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
-- `IP12_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
-- `IP20_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
-- `IP34_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
-- `IP37_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
-- `MONTRG_DATABASE_URL`: `postgresql+asyncpg://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
+- `[machine]_DATABASE_URL`: `mysql+aiomysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
+- `[service]_DATABASE_URL`: `postgresql+asyncpg://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>`
 
-**동적 데이터베이스 지원:**
+**Dynamic database support:**
 
-- `IP*_DATABASE_URL` 패턴의 환경 변수를 자동으로 인식합니다
-- 예: `IP04_DATABASE_URL` → `ip04`, `IP12_DATABASE_URL` → `ip12` 등
-- 새로운 IP 번호를 추가하려면 Secret에 `IP**_DATABASE_URL`만 추가하면 됩니다
+- Environment variables matching `IP*_DATABASE_URL` are detected automatically
+- Example: `MACH01_DATABASE_URL` → `MACH01`, `MACH02_DATABASE_URL` → `MACH02`, etc.
+- Add new IPs by adding `MACH**_DATABASE_URL` entries to the Secret
 
-### 배포 자동화 스크립트 (권장)
+### Deployment Script (Recommended)
 
-`scripts/deploy.sh` 스크립트를 사용하면 Docker 이미지 빌드부터 Kubernetes 배포까지 전체 프로세스를 자동화합니다.
+Use `scripts/deploy.sh` to automate Docker image build and Kubernetes deployment.
 
 ```bash
 cd ~/apps/unified_montrg
 ./scripts/deploy.sh
 ```
 
-이 스크립트는 다음 작업을 수행합니다:
+The script:
 
-1. Docker 이미지 빌드
-2. 모든 노드에 이미지 배포 (containerd 환경, 고가용성을 위한 자동 배포)
-3. Kubernetes 리소스 적용 (Namespace → Secret → ConfigMap → Service → Deployment → Ingress Controller → Ingress)
-4. Deployment 재시작
-5. Pod 상태 확인
+1. Builds the Docker image
+2. Deploys the image to all nodes (containerd, for high availability)
+3. Applies Kubernetes resources (Namespace → Secret → ConfigMap → Service → Deployment → Ingress Controller → Ingress)
+4. Restarts the Deployment
+5. Checks Pod status
 
-**고가용성 특징:**
+**High availability:**
 
-- 애플리케이션 Pod는 **5개의 Replica**로 실행 (기본 설정)
-- Ingress Controller는 **DaemonSet**으로 모든 노드에 배포
-- 어떤 노드 IP로 접근해도 동일하게 작동하며 **자동 로드밸런싱**
-- 노드 또는 Pod 장애 시에도 서비스 계속 제공
+- Application Pods run with **5 replicas** (default)
+- Ingress Controller is deployed as a **DaemonSet** on all nodes
+- Traffic is **load-balanced** regardless of which node IP is used
+- Service continues across node or Pod failures
 
-**환경 변수 커스터마이징:**
+**Customize via environment variables:**
 
 ```bash
 IMAGE_NAME=my-registry/unified-montrg:1.0.0 \
@@ -139,20 +135,20 @@ NAMESPACE=my-namespace \
 ./scripts/deploy.sh
 ```
 
-### 수동 배포
+### Manual Deployment
 
-스크립트 대신 수동으로 배포하려면 다음 순서로 매니페스트를 적용하세요:
+Apply manifests in this order:
 
 ```bash
 kf=~/apps/unified_montrg/k8s
 
-# 1. Namespace 생성
+# 1. Namespace
 kubectl apply -f $kf/namespace.yaml
 
-# 2. Secret (데이터베이스 연결 정보)
+# 2. Secret (database credentials)
 kubectl apply -f $kf/secret.yaml
 
-# 3. ConfigMap (애플리케이션 설정)
+# 3. ConfigMap (application settings)
 kubectl apply -f $kf/configmap.yaml
 
 # 4. Service (ClusterIP)
@@ -169,58 +165,58 @@ kubectl apply -f $kf/ingress-controller-service-patch.yaml
 kubectl apply -f $kf/ingress.yaml
 ```
 
-### 접근 방법
+### Access
 
-애플리케이션은 **Ingress Controller (DaemonSet)**를 통해 접근할 수 있습니다. Ingress Controller는 모든 노드에 배포되어 있으며, **어떤 노드 IP로 접근해도 자동으로 로드밸런싱**됩니다.
+The API is exposed via the **Ingress Controller (DaemonSet)**. The controller runs on every node and **load-balances** traffic regardless of which node IP you use.
 
-**고가용성 구조:**
+**High availability layout:**
 
-- Ingress Controller가 DaemonSet으로 배포되어 **모든 노드**에 실행
-- NodePort 30081로 모든 노드에 동일 포트로 접근 가능
-- 트래픽이 자동으로 여러 Pod에 분산 처리
+- Ingress Controller runs as a DaemonSet on **all nodes**
+- NodePort 30081 is available on every node
+- Traffic is distributed across multiple Pods
 
-**접근 URL 예시:**
+**URLs:**
 
-- **HTTP**: `http://<노드1 IP>:30081/api` 또는 `http://<노드2 IP>:30081/api` (어느 노드든 접근 가능)
-- **API 문서**: `http://<노드 IP>:30081/api/docs`
-- **ReDoc**: `http://<노드 IP>:30081/api/redoc`
+- **HTTP**: `http://<node1-ip>:30081/api` or `http://<node2-ip>:30081/api` (either node works)
+- **API docs**: `http://<node-ip>:30081/api/docs`
+- **ReDoc**: `http://<node-ip>:30081/api/redoc`
 
-**예시:**
+**Examples:**
 
 ```bash
-# 클러스터의 어떤 노드 IP든 사용 가능
-http://10.10.100.80:30081/api     # control-plane 노드
-http://10.10.100.81:30081/api     # worker 노드 (동일하게 작동)
+# Use any node IP in the cluster
+http://{Control Plane IP}:30081/api     # control-plane node
+http://{Worker Node IP}}:30081/api     # worker node (same behavior)
 ```
 
-### API 엔드포인트
+### API Endpoints
 
 - **IP Data API**: `/api/v1/ip-data/{pid}`
-  - `db` 쿼리 파라미터로 데이터베이스 선택 (ip04, ip12, ip20, ip34, ip37 등)
-  - 예: `/api/v1/ip-data/12345?db=ip04&limit=100`
+  - Use `db` query parameter to select database (ip04, ip12, ip20, ip34, ip37, etc.)
+  - Example: `/api/v1/ip-data/12345?db=ip04&limit=100`
   
 - **Machines API**: `/api/v1/machines`
-  - 계층 구조로 기계 정보 조회
-  - 필터: `plant_cd`, `process_name`, `op_cd`, `line_no`, `machine_no`
-  - 예: `/api/v1/machines?plant_cd=3120&process_name=IP/IU`
+  - Hierarchical machine information
+  - Filters: `plant_cd`, `process_name`, `op_cd`, `line_no`, `machine_no`
+  - Example: `/api/v1/machines?plant_cd=3120&process_name=IP/IU`
 
 - **Health Check**: `/api/healthz`
 
-### 배포 상태 확인
+### Deployment Status
 
 ```bash
-# Pod 상태 확인
+# Pods
 kubectl get pods -n unified-montrg
 
-# Deployment 상태 확인
+# Deployment
 kubectl get deployment -n unified-montrg
 
-# Service 및 Ingress 확인
+# Services and Ingress
 kubectl get svc,ingress -n unified-montrg
 
-# Pod 로그 확인
+# Logs
 kubectl logs -f deployment/unified-montrg -n unified-montrg
 
-# Deployment 재시작 (코드 변경 후)
+# Restart (after code changes)
 kubectl rollout restart deployment/unified-montrg -n unified-montrg
 ```
